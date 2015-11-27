@@ -2,6 +2,7 @@ package layoutdemo.heima.mq.library;
 
 import android.content.Context;
 import android.util.AttributeSet;
+import android.util.Log;
 import android.view.View;
 import android.view.ViewGroup;
 
@@ -18,7 +19,13 @@ import java.util.List;
  */
 public class JellybeansLayout extends ViewGroup{
 
-    private List<Line> mLines;//行的数量
+
+    private static final String TAG = "JellybeansLayout";
+    private List<Line> mLines    = new ArrayList<>();//行的数量
+    //当前行
+    private Line mCurrentLine = null;
+    private int mVerticalSpace = 15;//垂直间距
+    private int mHorizontalSpace = 15;//水平的间隙
 
     public JellybeansLayout(Context context) {
         this(context, null);
@@ -28,19 +35,24 @@ public class JellybeansLayout extends ViewGroup{
         super(context, attrs);
     }
 
+    public void setSpace(int vertical, int horizontal){
+        this.mVerticalSpace = vertical;
+        this.mHorizontalSpace = horizontal;
+    }
+
     @Override
     protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
+
+        Log.d(TAG, "onMeasure");
+        mCurrentLine = null;
+        mLines.clear();
+
 //        super.onMeasure(widthMeasureSpec, heightMeasureSpec);
         //自己的宽度
         int width = MeasureSpec.getSize(widthMeasureSpec);
         //垂直的间隙
-        int mVerticalSpace = 15;
 
-        //水平的间隙
-        int mHorizontalSpace = 15;
 
-        //当前行
-        Line mCurrentLine = null;
 
         //1 测量子View的宽度和高度
         int count = getChildCount();
@@ -81,10 +93,11 @@ public class JellybeansLayout extends ViewGroup{
         for (int i = 0; i < mLines.size(); i++) {
             Line line = mLines.get(i);
 
+            height += line.mLineHeight;
 
             if (i != mLines.size()-1){
-                //最后一个不添加间隙
-                height += line.mLineHeight;
+                // 不是最后一个,都添加间隙
+                height += mVerticalSpace;
             }
         }
         setMeasuredDimension(width, height);
@@ -93,6 +106,12 @@ public class JellybeansLayout extends ViewGroup{
     @Override
     protected void onLayout(boolean changed, int l, int t, int r, int b) {
 
+        int top = getPaddingTop();
+        for (int i = 0; i < mLines.size(); i++) {
+            Line line = mLines.get(i);
+            line.layout(getPaddingLeft(), top);
+            top += line.mLineHeight + mVerticalSpace;
+        }
     }
 
     private class Line{
@@ -168,5 +187,42 @@ public class JellybeansLayout extends ViewGroup{
             mViews.add(view);
         }
 
+        public void layout(int left, int top) {
+
+            //计算多余空间的值,并平均分给每一个子View
+            int extraWidth = mLineMaxWidth - mLineUseWidth;
+            int avgWidth = (int) (extraWidth* 1f / mViews.size() +0.5f);
+
+
+
+            for (int i = 0; i < mViews.size(); i++) {
+                View child = mViews.get(i);
+                int childWidth = child.getMeasuredWidth();
+                int childHeight = child.getMeasuredHeight();
+
+
+                //多余空间的值平均分给每一个子View
+                if (avgWidth > 0) {
+                    int measureWidth = MeasureSpec.makeMeasureSpec(childWidth + avgWidth, MeasureSpec.EXACTLY);
+                    int measureHeight= MeasureSpec.makeMeasureSpec(childHeight, MeasureSpec.EXACTLY);
+                    child.measure(measureWidth, measureHeight);
+
+                    //更新平均分多余空间后的新值
+                    childWidth = child.getMeasuredWidth();
+                    childHeight = child.getMeasuredHeight();
+                }
+
+
+                int l = left;
+                int t = (int) (top + (mLineHeight - childHeight)/2.0f +0.5f);
+                int r = l + childWidth;
+                int b = t + childHeight;
+                child.layout(l, t, r, b);
+
+
+                //更新左距离,右距离也会更新
+                left += childWidth + mSpace;
+            }
+        }
     }
 }
